@@ -36,10 +36,11 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function Home() {
   const posts = await getPosts();
-
+  const headersList = await headers()
+  const domain = headersList.get('host') || ''
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold mb-8">My Blog</h1>
+      <h1 className="text-4xl font-bold mb-8">My Blog {domain}</h1>
       <div className="grid gap-6">
         <Suspense fallback={<div>Loading...</div>}>
           {posts.map((post: any) => (

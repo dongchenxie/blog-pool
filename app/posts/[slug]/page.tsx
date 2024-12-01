@@ -8,12 +8,13 @@ interface Props {
   params: { slug: string }
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params }: any): Promise<Metadata> {
   const headersList = await headers();
   const domain = headersList.get('host') || '';
+  console.log(domain)
   await connectDB();
   const post = await Post.findOne({ slug: params.slug, domain });
-  
+  console.log(post)
   if (!post) {
     return {
       title: 'Post Not Found',
@@ -45,7 +46,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function BlogPost({ params }: Props) {
+export default async function BlogPost({ params }: any) {
   const headersList = await headers();
   const domain = headersList.get('host') || '';
   await connectDB();

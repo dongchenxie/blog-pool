@@ -8,6 +8,7 @@ export async function GET() {
     const headersList = await headers();
     const domain = headersList.get('host') || '';
     await connectDB();
+    console.log(domain)
     const posts = await Post.find({ domain }).sort({ createdAt: -1 });
     return NextResponse.json(posts);
   } catch (error) {

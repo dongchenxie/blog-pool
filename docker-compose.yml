@@ -11,10 +11,7 @@ services:
       - MONGODB_URI=mongodb://mongodbhost:27017/blog
     depends_on:
       - mongodbhost
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - /app/.next
+
 
   mongodbhost:
     image: mongo:latest

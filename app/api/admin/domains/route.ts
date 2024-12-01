@@ -5,16 +5,16 @@ import Domain from '@/models/Domain';
 import Post from '@/models/Post';
 
 async function isLocalhost(request: Request) {
-  const headersList = headers();
+  const headersList = await headers();
   const host = headersList.get('host') || '';
   return host.includes('localhost') || host.includes('127.0.0.1');
 }
 
 export async function GET() {
   try {
-    if (!await isLocalhost(Request)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // if (!await isLocalhost(Request)) {
+    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // }
 
     await connectDB();
     const domains = await Domain.find({});

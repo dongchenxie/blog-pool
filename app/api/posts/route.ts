@@ -3,14 +3,33 @@ import { headers } from 'next/headers';
 import connectDB from '@/lib/mongodb';
 import Post from '@/models/Post';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const headersList = await headers();
-    const domain = headersList.get('host') || '';
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '20');
+    const domain = searchParams.get('domain') || '';
+    const skip = (page - 1) * limit;
+
     await connectDB();
-    console.log(domain)
-    const posts = await Post.find({ domain }).sort({ createdAt: -1 });
-    return NextResponse.json(posts);
+    
+    const [posts, total] = await Promise.all([
+      Post.find({ domain })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Post.countDocuments({ domain })
+    ]);
+
+    return NextResponse.json({
+      posts,
+      pagination: {
+        total,
+        page,
+        pageSize: limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     console.error('GET /api/posts error:', error);
     return NextResponse.json({ 

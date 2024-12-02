@@ -1,15 +1,38 @@
 import Link from 'next/link';
 import { IPost } from '@/models/Post';
+import { generateThemeFromHost } from '@/utils/styleUtils';
 
-export default function PostCard({ post }: { post: IPost }) {
+export default function PostCard({ post, host }: { post: IPost; host: string }) {
+  const theme = generateThemeFromHost(host);
+  
   return (
-    <div className="border rounded-lg p-4 mb-4 hover:shadow-lg transition-shadow">
+    <div 
+      style={{
+        border: `2px solid ${theme.primary}`,
+        borderRadius: theme.borderRadius,
+        padding: theme.spacing,
+        marginBottom: theme.spacing,
+        backgroundColor: theme.background,
+        fontFamily: theme.fontFamily,
+        transition: 'all 0.3s ease',
+      }}
+    >
       <Link href={`/posts/${post.slug}`}>
-        <h2 className="text-xl font-bold mb-2">{post.title}</h2>
-        <p className="text-gray-600 mb-2">
+        <h2 style={{ 
+          fontSize: '1.5rem',
+          fontWeight: 'bold',
+          marginBottom: theme.spacing,
+          color: theme.primary 
+        }}>
+          {post.title}
+        </h2>
+        <p style={{ 
+          color: theme.secondary,
+          marginBottom: theme.spacing
+        }}>
           By {post.author} on {new Date(post.createdAt).toLocaleDateString()}
         </p>
-        <p className="text-gray-800">
+        <p style={{ color: theme.text }}>
           {post.content.substring(0, 150)}...
         </p>
       </Link>

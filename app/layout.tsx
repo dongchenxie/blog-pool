@@ -1,63 +1,48 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
 import "./globals.css";
-import { headers } from 'next/headers'
+import { headers } from 'next/headers';
+import { generateThemeFromHost } from '@/utils/styleUtils';
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
-});
-
-export async function generateMetadata(): Promise<Metadata> {
-  const headersList = await headers()
-  const domain = headersList.get('host') || ''
-  const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
-  const baseUrl = `${protocol}://${domain}`
-
-  return {
-    title: {
-      default: "My Tech Blog",
-      template: "%s | My Tech Blog"
-    },
-    description: "Explore articles about Next.js, TypeScript, and web development",
-    keywords: ["blog", "tech", "programming", "web development"],
-    authors: [{ name: "Your Name" }],
-    metadataBase: new URL(baseUrl),
-    openGraph: {
-      type: "website",
-      locale: "en_US",
-      siteName: "My Tech Blog",
-      images: [
-        {
-          url: "/og-image.jpg",
-          width: 1200,
-          height: 630,
-        },
-      ],
-    },
-    twitter: {
-      card: "summary_large_image",
-      creator: "@yourhandle",
-    },
-  }
-}
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headersList = await headers();
+  const host = headersList.get('host') || '';
+  const theme = generateThemeFromHost(host);
+
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <head>
+        <style>{`
+          :root {
+            --primary-color: ${theme.primary};
+            --secondary-color: ${theme.secondary};
+            --accent-color: ${theme.accent};
+            --background-color: ${theme.background};
+            --text-color: ${theme.text};
+            --font-family: ${theme.fontFamily};
+            --border-radius: ${theme.borderRadius};
+            --spacing: ${theme.spacing};
+          }
+
+          body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-family: var(--font-family);
+          }
+
+          a {
+            color: var(--primary-color);
+          }
+
+          h1, h2, h3, h4, h5, h6 {
+            color: var(--primary-color);
+          }
+        `}</style>
+      </head>
+      <body>
         {children}
       </body>
     </html>

@@ -8,6 +8,8 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_KEY,
 });
 
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini-2024-07-18';
+
 interface BlogConfig {
   domains: string[];
   clientDomains: string[];
@@ -63,7 +65,7 @@ async function generateBlogOutline(keywords: string[]): Promise<string> {
         content: outlinePrompt 
       }
     ],
-    model: "gpt-4-turbo-preview",
+    model: OPENAI_MODEL,
     temperature: 0.7,
   });
 
@@ -81,61 +83,103 @@ async function generateSectionContent(
   clientDomains: string[],
   scrapedContents: string[]
 ): Promise<string> {
-  const sectionPrompt = `Write a comprehensive, in-depth section about "${section}" for a blog post about ${keywords.join(', ')}.
-  Use this related content as context: ${scrapedContents.join('\n\n')}
-
-  Content Strategy:
-  1. Start with a thorough introduction explaining why this topic matters
-  2. Break down each major concept into multiple detailed subsections
-  3. For each subsection:
-     - Begin with core concepts
-     - Expand with detailed explanations
-     - Provide specific examples
-     - Include practical applications
-     - Address common questions
-  4. Include diverse content types:
-     - Step-by-step guides
-     - Detailed case studies
-     - Expert analysis
-     - Product comparisons
-     - Industry research findings
-     - Historical context and future predictions
-     - Troubleshooting guides
-     - Best practices and recommendations
+  // First, generate subsection outline
+  const subsectionOutlinePrompt = `For the section "${section}" about ${keywords.join(', ')}, create a detailed breakdown of 6-8 subsections.
   
-  Format Requirements:
-  - Use ONLY HTML tags (no markdown)
-  - Use proper heading hierarchy (<h2>, <h3>, etc.)
-  - Use <p> for paragraphs
-  - Use <table> for comparison tables
-  - Use <div class="pro-tip"> for pro tips
-  - Use <div class="did-you-know"> for facts
-  - Use <blockquote> for expert quotes
-  - Use <ul> and <ol> for lists
-  - Use <div class="case-study"> for case studies
-  - Use <div class="key-insight"> for important findings
-  
-  Integration Requirements:
-  - Naturally incorporate links to ${ourDomain} where relevant
-  - Reference ${clientDomains.join(', ')} when discussing specific products or solutions
-  - Include data-backed claims and statistics
-  - Add comparison tables when discussing multiple options
-  - Embed expert quotes to support key points`;
+  Requirements:
+  1. Each subsection should cover a distinct aspect
+  2. Include the following types of subsections:
+     - Comprehensive Overview
+     - Historical Background
+     - Technical Details
+     - Practical Applications
+     - Case Studies
+     - Expert Analysis
+     - Industry Trends
+     - Future Predictions
+     - Comparison Analysis
+     - Troubleshooting Guide
+     
+  Format as a simple list of subsection titles.`;
 
-  const sectionCompletion = await openai.chat.completions.create({
-    messages: [{ 
-      role: "system", 
-      content: "You are an expert content writer who creates comprehensive, engaging, and detailed content. Your writing is thorough and covers topics from multiple angles, always providing deep insights and practical value."
-    },
-    { 
-      role: "user", 
-      content: sectionPrompt 
-    }],
-    model: "gpt-4-turbo-preview",
+  const outlineResponse = await openai.chat.completions.create({
+    messages: [
+      { role: "system", content: "You are an expert content organizer." },
+      { role: "user", content: subsectionOutlinePrompt }
+    ],
+    model: OPENAI_MODEL,
     temperature: 0.7,
   });
 
-  return sectionCompletion.choices[0]?.message?.content || '';
+  const subsections = outlineResponse.choices[0]?.message?.content?.split('\n')
+    .map(line => line.replace(/^\d+\.\s*/, '').trim())
+    .filter(line => line.length > 0) || [];
+
+  // Generate content for each subsection
+  const subsectionContents = await Promise.all(subsections.map(async (subsection) => {
+    const subsectionPrompt = `Write a detailed subsection about "${subsection}" for the main section "${section}" about ${keywords.join(', ')}.
+    Use this related content as reference: ${scrapedContents.join('\n\n')}
+
+    Writing Requirements:
+    1. Write at least 1000 words for this subsection
+    2. Include multiple paragraphs with deep analysis
+    3. Break down complex concepts into digestible parts
+    4. Support claims with specific examples and data
+    5. Include relevant statistics and research findings
+    6. Add expert opinions and industry insights
+    7. Provide practical examples and real-world applications
+    8. Address common questions and misconceptions
+    9. Include actionable tips and recommendations
+    10. Reference industry standards and best practices
+
+    Content Elements to Include:
+    - Detailed explanations of key concepts
+    - Step-by-step guides where applicable
+    - Comparison tables for related products/methods
+    - Expert quotes and testimonials
+    - Statistical data and research findings
+    - Case study examples
+    - Pro tips and best practices
+    - Common pitfalls and solutions
+    - Future trends and predictions
+    
+    Integration Requirements:
+    - Naturally link to ${ourDomain} for relevant products/services
+    - Reference ${clientDomains.join(', ')} for specific examples
+    - Include comparison tables with competitor analysis
+    - Add relevant internal and external citations
+    - Use industry-specific terminology appropriately
+
+    Format using proper HTML structure with:
+    - <h3> for subsection title
+    - <h4> for sub-subsection headings
+    - <p> for paragraphs
+    - <table> for comparison tables
+    - <blockquote> for expert quotes
+    - <div class="pro-tip"> for professional tips
+    - <div class="case-study"> for case studies
+    - <div class="key-insight"> for important findings
+    - <ul> and <ol> for lists`;
+
+    const subsectionResponse = await openai.chat.completions.create({
+      messages: [
+        { 
+          role: "system", 
+          content: "You are an expert content writer who creates in-depth, professional content. Your writing is detailed, well-researched, and comprehensive."
+        },
+        { 
+          role: "user", 
+          content: subsectionPrompt 
+        }
+      ],
+      model: OPENAI_MODEL,
+      temperature: 0.7,
+    });
+
+    return subsectionResponse.choices[0]?.message?.content || '';
+  }));
+
+  return `<h2>${section}</h2>${subsectionContents.join('\n\n')}`;
 }
 
 async function generateBlogPost(keywords: string[], ourDomain: string, clientDomains: string[]): Promise<{

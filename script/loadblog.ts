@@ -17,7 +17,9 @@ interface BlogConfig {
   descriptions: string[];
   keywords: string[];
   totalPosts: number;
-  threadCount: number; // Added for configuring thread count
+  threadCount: number;
+  sectionRange: { min: number; max: number };
+  subsectionRange: { min: number; max: number };
 }
 
 function getRandomItems<T>(array: T[], min: number = 1, max: number = array.length): T[] {
@@ -26,13 +28,13 @@ function getRandomItems<T>(array: T[], min: number = 1, max: number = array.leng
   return shuffled.slice(0, count);
 }
 
-async function generateBlogOutline(keywords: string[]): Promise<string> {
+async function generateBlogOutline(keywords: string[], config: BlogConfig): Promise<string> {
   const outlinePrompt = `Create a detailed outline for a comprehensive blog post about ${keywords.join(', ')}.
   
   Requirements:
   1. Include a main title
-  2. Create a detailed table of contents with major sections and subsections
-  3. Each keyword should have its own major section with 3-4 subsections
+  2. Create a detailed table of contents with ${config.sectionRange.min}-${config.sectionRange.max} major sections
+  3. Each major section should have ${config.subsectionRange.min}-${config.subsectionRange.max} subsections
   4. Include placeholders for:
      - Did You Know sections
      - Pro Tips
@@ -69,9 +71,12 @@ async function generateBlogOutline(keywords: string[]): Promise<string> {
     temperature: 0.7,
   });
 
-  // Clean up any potential markdown artifacts
+  // Enhanced cleanup
   let outline = outlineCompletion.choices[0]?.message?.content || '';
-  outline = outline.replace(/```html/g, '').replace(/```/g, '').trim();
+  outline = outline
+    .replace(/```html\s*/gi, '')  // Remove ```html with any whitespace
+    .replace(/```\s*/g, '')       // Remove ``` with any whitespace
+    .replace(/^\s+|\s+$/g, '');   // Trim whitespace
 
   return outline;
 }
@@ -81,91 +86,61 @@ async function generateSectionContent(
   keywords: string[],
   ourDomain: string,
   clientDomains: string[],
-  scrapedContents: string[]
+  scrapedContents: string[],
+  config: BlogConfig
 ): Promise<string> {
-  // First, generate subsection outline
-  const subsectionOutlinePrompt = `For the section "${section}" about ${keywords.join(', ')}, create a detailed breakdown of 6-8 subsections.
-  
-  Requirements:
-  1. Each subsection should cover a distinct aspect
-  2. Include the following types of subsections:
-     - Comprehensive Overview
-     - Historical Background
-     - Technical Details
-     - Practical Applications
-     - Case Studies
-     - Expert Analysis
-     - Industry Trends
-     - Future Predictions
-     - Comparison Analysis
-     - Troubleshooting Guide
-     
-  Format as a simple list of subsection titles.`;
+  // Use config values for subsection count
+  const subsectionsPrompt = `Create ${config.subsectionRange.min}-${config.subsectionRange.max} detailed subsection titles for the section "${section}" about ${keywords.join(', ')}.
+  Return only the subsection titles, one per line.`;
 
-  const outlineResponse = await openai.chat.completions.create({
+  const subsectionsCompletion = await openai.chat.completions.create({
     messages: [
-      { role: "system", content: "You are an expert content organizer." },
-      { role: "user", content: subsectionOutlinePrompt }
+      { 
+        role: "system", 
+        content: "You are a content organizer. Return only subsection titles, one per line."
+      },
+      { 
+        role: "user", 
+        content: subsectionsPrompt 
+      }
     ],
     model: OPENAI_MODEL,
     temperature: 0.7,
   });
 
-  const subsections = outlineResponse.choices[0]?.message?.content?.split('\n')
-    .map(line => line.replace(/^\d+\.\s*/, '').trim())
-    .filter(line => line.length > 0) || [];
+  const subsectionTitles = subsectionsCompletion.choices[0]?.message?.content
+    ?.split('\n')
+    .filter(title => title.trim()) || [];
 
   // Generate content for each subsection
-  const subsectionContents = await Promise.all(subsections.map(async (subsection) => {
-    const subsectionPrompt = `Write a detailed subsection about "${subsection}" for the main section "${section}" about ${keywords.join(', ')}.
-    Use this related content as reference: ${scrapedContents.join('\n\n')}
+  const subsectionContents = await Promise.all(subsectionTitles.map(async (subsectionTitle) => {
+    const subsectionPrompt = `Write detailed content for the subsection "${subsectionTitle}" within the main section "${section}" about ${keywords.join(', ')}.
+    Use this related content as context: ${scrapedContents.join('\n\n')}
 
-    Writing Requirements:
-    1. Write at least 1000 words for this subsection
-    2. Include multiple paragraphs with deep analysis
-    3. Break down complex concepts into digestible parts
-    4. Support claims with specific examples and data
-    5. Include relevant statistics and research findings
-    6. Add expert opinions and industry insights
-    7. Provide practical examples and real-world applications
-    8. Address common questions and misconceptions
-    9. Include actionable tips and recommendations
-    10. Reference industry standards and best practices
-
-    Content Elements to Include:
-    - Detailed explanations of key concepts
-    - Step-by-step guides where applicable
-    - Comparison tables for related products/methods
-    - Expert quotes and testimonials
-    - Statistical data and research findings
-    - Case study examples
-    - Pro tips and best practices
-    - Common pitfalls and solutions
-    - Future trends and predictions
+    Requirements:
+    - Begin with core concepts
+    - Provide detailed explanations
+    - Include specific examples
+    - Add practical applications
+    - Address common questions
+    
+    Format Requirements:
+    - Use ONLY HTML tags
+    - Use <h3> for the subsection title
+    - Use <p> for paragraphs
+    - Use appropriate HTML elements for structure
+    - Include at least one special element (pro-tip, case study, or key insight)
     
     Integration Requirements:
-    - Naturally link to ${ourDomain} for relevant products/services
-    - Reference ${clientDomains.join(', ')} for specific examples
-    - Include comparison tables with competitor analysis
-    - Add relevant internal and external citations
-    - Use industry-specific terminology appropriately
+    - Reference ${ourDomain} naturally where relevant
+    - Mention ${clientDomains.join(', ')} when discussing specific products
+    - Include data-backed claims`;
 
-    Format using proper HTML structure with:
-    - <h3> for subsection title
-    - <h4> for sub-subsection headings
-    - <p> for paragraphs
-    - <table> for comparison tables
-    - <blockquote> for expert quotes
-    - <div class="pro-tip"> for professional tips
-    - <div class="case-study"> for case studies
-    - <div class="key-insight"> for important findings
-    - <ul> and <ol> for lists`;
-
-    const subsectionResponse = await openai.chat.completions.create({
+    const subsectionCompletion = await openai.chat.completions.create({
       messages: [
         { 
           role: "system", 
-          content: "You are an expert content writer who creates in-depth, professional content. Your writing is detailed, well-researched, and comprehensive."
+          content: "You are an expert content writer creating detailed, engaging subsection content."
         },
         { 
           role: "user", 
@@ -176,13 +151,19 @@ async function generateSectionContent(
       temperature: 0.7,
     });
 
-    return subsectionResponse.choices[0]?.message?.content || '';
+    return subsectionCompletion.choices[0]?.message?.content || '';
   }));
 
-  return `<h2>${section}</h2>${subsectionContents.join('\n\n')}`;
+  // Combine section content
+  const sectionContent = `
+    <h2>${section}</h2>
+    ${subsectionContents.join('\n\n')}
+  `;
+
+  return sectionContent.trim();
 }
 
-async function generateBlogPost(keywords: string[], ourDomain: string, clientDomains: string[]): Promise<{
+async function generateBlogPost(keywords: string[], ourDomain: string, clientDomains: string[], config: BlogConfig): Promise<{
   title: string;
   content: string;
   slug: string;
@@ -196,7 +177,7 @@ async function generateBlogPost(keywords: string[], ourDomain: string, clientDom
   );
 
   // Get the outline first
-  const outline = await generateBlogOutline(keywords);
+  const outline = await generateBlogOutline(keywords, config);
   
   // Parse the outline to extract sections (you'll need to implement this based on your outline structure)
   const sections = outline.match(/<h2>(.*?)<\/h2>/g)?.map(section => 
@@ -206,7 +187,7 @@ async function generateBlogPost(keywords: string[], ourDomain: string, clientDom
   // Generate content for each section
   const sectionContents = await Promise.all(
     sections.map(section => 
-      generateSectionContent(section, keywords, ourDomain, selectedClientDomains, scrapedContents)
+      generateSectionContent(section, keywords, ourDomain, selectedClientDomains, scrapedContents, config)
     )
   );
 
@@ -248,13 +229,13 @@ async function generatePostsForDomain(domain: string, config: BlogConfig) {
   const postTasks = Array.from({ length: config.totalPosts }, async (_, index) => {
     const selectedKeywords = getRandomItems(config.keywords, 2, 4);
     console.log(`Generating post ${index + 1} for ${domain} with keywords: ${selectedKeywords.join(', ')}`);
-    const post = await generateBlogPost(selectedKeywords, domain, config.clientDomains);
+    const post = await generateBlogPost(selectedKeywords, domain, config.clientDomains, config);
 
     await Post.create({
       title: post.title,
       content: post.content,
       slug: post.slug,
-      author: 'mini 2024-07-18',
+      author: 'mini dsfds18',
       domain,
     });
 
@@ -299,34 +280,38 @@ const blogConfig: BlogConfig = {
     'beijing.fowardmedia.net',
   ],
   clientDomains: [
-    'sextoyforyou.com',
-    'sextoyforyou.com/product/miaomiss-cat-beard-mouth-gag/',
-    'sextoyforyou.com/product/thunder-automatic-male-masturbator/',
+    'https://learn.lovevery.com/',
+    'https://lovevery.com/products/',
   ],
   titles: [
-    'Adult Wellness Guide',
-    'Intimate Lifestyle Blog',
-    'Pleasure & Wellness Hub',
-    'Adult Product Reviews',
+    'Baby Development Guide',
+    'Early Learning Resources',
+    'Parenting Tips & Tricks',
+    'Child Development Blog',
+    'Educational Toy Reviews',
   ],
   descriptions: [
-    'Your guide to intimate wellness and adult products',
-    'Exploring intimate wellness and relationship advice',
-    'Expert reviews and guides for adult products',
-    'Comprehensive information about intimate wellness',
+    'Your trusted guide to child development and educational toys',
+    'Expert advice on early childhood learning and development',
+    'Comprehensive resources for conscious parenting',
+    'Research-backed insights into child growth and play',
   ],
   keywords: [
-    'Adult Toys',
-    'Intimate Wellness',
-    'Couples Products',
-    'Personal Massagers',
-    'Relationship Wellness',
-    'Adult Accessories',
-    'Intimate Health',
-    'Product Reviews',
+    'Baby Development',
+    'Educational Toys',
+    'Early Learning',
+    'Montessori Play',
+    'Child Development',
+    'Sensory Activities',
+    'Motor Skills',
+    'Developmental Milestones',
+    'Learning Through Play',
+    'Baby Safety',
   ],
   totalPosts: 2,
   threadCount: 3, // Configurable thread count
+  sectionRange: { min: 5, max: 10 },
+  subsectionRange: { min: 5, max: 10 },
 };
 
 // Run the script

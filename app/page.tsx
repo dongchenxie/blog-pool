@@ -16,7 +16,7 @@ interface PaginatedResponse {
 
 async function getPosts(page: number = 1, domain: string): Promise<PaginatedResponse> {
   const res = await fetch(
-    `http://localhost:3001/api/posts?page=${page}&limit=5&domain=${encodeURIComponent(domain)}`,
+    `http://localhost:3000/api/posts?page=${page}&limit=5&domain=${encodeURIComponent(domain)}`,
     { cache: 'no-store' }
   );
   if (!res.ok) throw new Error('Failed to fetch posts');

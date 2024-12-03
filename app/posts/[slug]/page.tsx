@@ -62,7 +62,10 @@ export default async function BlogPost({ params }: any) {
       <div className="text-gray-600">
         By {post.author} on {new Date(post.createdAt).toLocaleDateString()}
       </div>
-      <div className="mt-8">{post.content}</div>
+      <div 
+        className="mt-8"
+        dangerouslySetInnerHTML={{ __html: post.content }}
+      />
     </article>
   );
 }

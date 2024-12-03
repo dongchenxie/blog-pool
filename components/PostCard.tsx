@@ -2,8 +2,13 @@ import Link from 'next/link';
 import { IPost } from '@/models/Post';
 import { generateThemeFromHost } from '@/utils/styleUtils';
 
+function stripHtmlTags(html: string): string {
+  return html.replace(/<[^>]*>/g, '');
+}
+
 export default function PostCard({ post, host }: { post: IPost; host: string }) {
   const theme = generateThemeFromHost(host);
+  const cleanContent = stripHtmlTags(post.content);
   
   return (
     <div 
@@ -33,7 +38,7 @@ export default function PostCard({ post, host }: { post: IPost; host: string }) 
           By {post.author} on {new Date(post.createdAt).toLocaleDateString()}
         </p>
         <p style={{ color: theme.text }}>
-          {post.content.substring(0, 150)}...
+          {cleanContent.substring(0, 150)}...
         </p>
       </Link>
     </div>
